@@ -44,15 +44,10 @@ class CostWeights:
 # Klassen-Typen
 TRAIN_CLASSES = ["FV", "RE", "S", "G"]
 
-
 def assign_classes(num_agents: int) -> List[str]:
-    """Rundet die Klassen einfach zyklisch zu – als Platzhalter.
-    Beispiel: 0:FV, 1:RE, 2:S, 3:G, 4:FV, ...
-    """
-    classes: List[str] = []
-    for i in range(num_agents):
-        classes.append(TRAIN_CLASSES[i % len(TRAIN_CLASSES)])
-    return classes
+    """Zuweisung der Klassen (zyklisch) für genau die Zahl Agents,
+    die das Environment nach reset() tatsächlich liefert."""
+    return [TRAIN_CLASSES[i % len(TRAIN_CLASSES)] for i in range(num_agents)]
 
 
 def class_weight(train_class: str, cw: CostWeights) -> float:
@@ -228,8 +223,16 @@ def main():
         seed=args.seed,
     )
 
-    # Klassen zuweisen (zyklisch)
-    tclasses = assign_classes(env.get_num_agents())
+     # Resets mit Seed-Retry
+    for attempt in range(5):
+        try:
+            obs, info = env.reset()
+            n_agents = env.get_num_agents()
+            tclasses = assign_classes(n_agents)
+            print(f"[info] Env ready: Agents={n_agents} Seed={args.seed} Try={attempt+1}")
+            break
+        except ValueError as e:
+            ...
 
     costs = CostWeights(
         w_fv=args.w_fv,
@@ -239,25 +242,6 @@ def main():
         goal_reward=args.goal_reward,
         deadlock_penalty=args.deadlock_penalty,
     )
-
-    # Resets mit Seed-Retry, falls ein Seed kein Layout erzeugt
-    for attempt in range(5):
-        try:
-            env.reset()
-            print(f"[info] Env ready: Agents={env.get_num_agents()} Seed={args.seed} Try={attempt+1}")
-            break
-        except ValueError as e:
-            if "no feasible environment" in str(e).lower():
-                args.seed += 1
-                env.rail_generator = sparse_rail_generator(
-                    max_num_cities=max(2, args.cities),
-                    grid_mode=False,
-                    max_rails_between_cities=max(1, args.rails_between),
-                    max_rail_pairs_in_city=max(1, args.rail_pairs_in_city),
-                    seed=args.seed,
-                )
-                continue
-            raise
 
     metrics = run_episode(env, tclasses, costs,
                           render=args.render,

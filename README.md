@@ -1,5 +1,5 @@
 ﻿# Flatland PoC
-
+Erstes Proof of Concept zur Bachelor-Thesis
 ## Setup
 ```powershell
 python -m venv .venv
